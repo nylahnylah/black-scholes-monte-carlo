@@ -37,7 +37,12 @@ int main()
 
     // Open the CSV file for writing.
     // std::ofstream opens a file — if it doesn't exist, it creates it.
-    std::ofstream csv("../output/results.csv");
+    std::ofstream csv("output/results.csv");
+
+    if (!csv.is_open()) {
+        std::cout << "ERROR: could not open output/results.csv\n";
+        return 1;
+    }
 
     // Write the header row
     csv << "numSims,mcPrice,bsPrice,error,timeMs\n";
