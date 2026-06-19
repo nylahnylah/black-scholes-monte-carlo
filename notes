@@ -1,0 +1,156 @@
+What you can now explain to an interviewer:
+
+What a call option is and why it has a price
+What Black-Scholes is actually computing (discounted expectation under Q)
+Why the drift mu disappears (hedging argument, no-arbitrage)
+What Monte Carlo is doing and why it converges at 1/sqrt(N)
+Why you used OOP design (encapsulation, extensibility)
+
+Here's a comprehensive interview guide for this project. I've organised it by the questions you're actually likely to get, from "explain your project" down to the deep follow-ups that separate people who memorised from people who understand.
+
+1. The 60-second project summary
+Practice saying this fluently — it's your opening:
+
+"I built a European option pricer in C++ that prices a call two independent ways: the Black-Scholes closed-form formula, and Monte Carlo simulation. The point was to validate one against the other — Monte Carlo should converge to the analytical price as the number of simulations grows, at a rate of 1 over root N, and I verified that empirically. It's object-oriented: an Option class holds the contract parameters and exposes both pricing methods. The C++ writes results to a CSV, and a Python notebook reads that and plots the convergence on a log-log scale to confirm the error decays at the theoretical rate."
+
+That hits: what, why, the design, and the result. Everything below is the follow-up they'll dig into.
+
+2. The finance — what they'll probe
+What is a call option?
+The right, but not the obligation, to buy an asset at a fixed strike price K at expiry T. You pay a premium upfront. Payoff at expiry is max(S_T − K, 0).
+
+Why does it have a price / why is the payoff asymmetric?
+Downside is capped (you can walk away, losing only the premium), upside is unbounded. That asymmetry has value, so it costs something today.
+
+Call vs put. Call = right to buy, profits when price rises, payoff max(S_T − K, 0). Put = right to sell, profits when price falls, payoff max(K − S_T, 0).
+
+Payoff vs profit. Payoff is what you get at exercise. Profit subtracts the premium. You exercise whenever S_T > K even if you haven't recovered the premium — partial recovery beats zero. Break-even is K + premium.
+
+European vs American. European can only be exercised at expiry. American can be exercised any time up to expiry. Yours is European — that's what makes the closed form exist. (Good to know: American options generally need numerical methods like binomial trees or least-squares Monte Carlo.)
+
+3. The model — Geometric Brownian Motion
+Why model the stock as random?
+Prices aren't predictable. GBM is the standard model:
+
+dS_t = μ S_t dt + σ S_t dW_t
+
+μ = drift (average return)
+σ = volatility
+W_t = Brownian motion, increments W_t − W_s ~ N(0, t−s), independent
+Why is the noise scaled by S_t?
+Because what's stable across stocks is percentage returns, not absolute moves. A £10 stock and a £1000 stock both move ~2% a day, not ±£0.20 each. Dividing through gives dS/S = μ dt + σ dW — the return is what's random.
+
+Solution to the SDE:
+
+S_T = S_0 exp[(μ − ½σ²)T + σ√T · Z], Z ~ N(0,1)
+
+So S_T is log-normally distributed.
+
+Where does the −½σ² come from? Itô's lemma. When you apply the stochastic chain rule to log(S_t), you must keep the second-order term because (dW)² = dt doesn't vanish. That term contributes −½σ². Intuitively it's the drag from volatility: up 10% then down 10% leaves you at 0.99, not 1. (If they push: it's Jensen's inequality on the convex exponential.)
+
+4. The deep one — risk-neutral pricing
+This is the question that matters most. Expect: "Why does the drift μ disappear from Black-Scholes?"
+
+The answer:
+You can form a portfolio of the option plus a continuously-adjusted quantity Δ of the underlying so that the random dW term cancels exactly. That portfolio is instantaneously riskless, so by no-arbitrage it must earn the risk-free rate r. When you write that condition down, μ drops out entirely and r takes its place.
+
+What is arbitrage? A guaranteed profit with zero risk and zero net investment. In efficient markets it gets competed away instantly, so "no-arbitrage" is the assumption that pins down a unique fair price.
+
+The risk-neutral measure Q.
+Equivalently: there's a probability measure Q under which every asset drifts at r instead of μ. The price of any derivative is:
+
+V_0 = e^(−rT) · E^Q[payoff]
+
+Discount the expected payoff — but take the expectation under Q, not the real world.
+
+Why not just use the real-world expectation? Because different investors have different beliefs about μ, which would give different prices. Q is the unique measure forced by no-arbitrage, so it makes the price objective. Q is not a forecast — it's a pricing device.
+
+The intuition for "risk-neutral": under Q, investors are indifferent to risk, so every asset earns r. It's not that the world is actually risk-neutral; it's that derivative prices come out the same as if it were.
+
+5. Black-Scholes formula itself
+C = S·N(d₁) − K·e^(−rT)·N(d₂)
+
+d₁ = [ln(S/K) + (r + ½σ²)T] / (σ√T), d₂ = d₁ − σ√T
+
+N(d₂) = the risk-neutral probability the option finishes in the money (S_T > K).
+K·e^(−rT)·N(d₂) = present value of paying the strike, weighted by the probability you actually pay it.
+S·N(d₁) = present value of receiving the stock, conditional and size-weighted.
+N(·) = standard normal CDF.
+The five inputs: S, K, r, σ, T. Note what's not there: μ. And of these five, σ is the only one you can't directly observe — which leads to implied volatility (below).
+
+6. Monte Carlo
+The algorithm:
+
+Draw Z ~ N(0,1)
+S_T = S·exp[(r − ½σ²)T + σ√T·Z] — note r, not μ, because we simulate under Q
+payoff = max(S_T − K, 0)
+Repeat N times, average, multiply by e^(−rT)
+Why does it work? Law of large numbers: the sample mean converges to E^Q[payoff], which is exactly what risk-neutral pricing says to compute.
+
+Convergence rate: 1/√N. Standard error = σ_payoff / √N. To halve the error you need 4× the simulations. Slow, but dimension-independent — which is why MC wins for high-dimensional problems (baskets of many assets) where PDE/tree methods blow up.
+
+Key trade-off — why bother with MC if BS is exact?
+BS only has a closed form for simple payoffs. MC prices anything — path-dependent options (Asian, barrier), multi-asset baskets, exotic payoffs. For your project, MC's job is to validate BS; in practice it's the tool you reach for when no formula exists.
+
+Why the fixed seed (42)? Reproducibility — same seed gives the same sequence every run, which makes debugging and grading deterministic. In production you'd want a varying seed (or run many independent batches) so results aren't always identical.
+
+7. The C++ / software side
+Be ready to justify every design choice:
+
+Why object-oriented?
+Encapsulation — the Option bundles its data (S, K, r, σ, T) with the methods that act on it, instead of passing five loose parameters everywhere. It's extensible: adding a put, or Greeks, is just another method. It models the domain naturally — an option is a thing that knows how to price itself.
+
+Header vs source file. The .h declares the interface (what exists); the .cpp defines the implementation (the logic). This lets other files use the class by including only the header, and lets you recompile files independently.
+
+Include guards (#ifndef / #define / #endif). Stop a header being processed twice in one translation unit, which would cause redefinition errors.
+
+const methods. blackScholesPrice() const promises not to mutate the object. It lets the method be called on const objects and documents intent.
+
+Constructor + initialiser list (: S(S), K(K), ...). Initialises members directly rather than assigning inside the body — the preferred, slightly more efficient idiom.
+
+static helper (normalCDF). File-local — it's an implementation detail, not part of the public interface, so it's hidden from other files.
+
+The normal CDF trick. C++ has no built-in N(x), but <cmath> has erfc. The exact identity N(x) = ½·erfc(−x/√2) gives it to you with no approximation.
+
+std::mt19937 + std::normal_distribution. The engine (Mersenne Twister) produces raw random bits; the distribution shapes them into N(0,1) draws. Separating the two is the modern C++ random design.
+
+Precomputing drift/diffusion outside the loop. They don't depend on the loop variable, so computing them once instead of N times is a simple optimisation.
+
+The Makefile. Automates compilation. -std=c++17 (modern features like range-based for), -Wall (all warnings), -O2 (optimisation), -Iinclude (where to find headers). One make instead of a long g++ command, and it only rebuilds what changed.
+
+8. Likely curveballs
+Have an answer ready for these:
+
+"What are the assumptions of Black-Scholes, and where do they break?"
+Constant volatility and interest rate, log-normal prices, no transaction costs, continuous trading, no jumps. Reality breaks all of these — most importantly volatility isn't constant, which shows up as the volatility smile: implied vol varies with strike, whereas BS assumes it's flat.
+
+"What is implied volatility?"
+σ is the one input you can't observe. Given a market price, you invert Black-Scholes to find the σ that reproduces it. That's implied vol — the market's forward-looking estimate. Inverting requires a root-finder (e.g. Newton-Raphson) since you can't solve for σ algebraically.
+
+"What are the Greeks?"
+Sensitivities of the price to inputs. Delta = ∂C/∂S (and N(d₁) is the call's delta — the hedge ratio from the derivation). Gamma = ∂²C/∂S². Vega = ∂C/∂σ. Theta = ∂C/∂T. Rho = ∂C/∂r. These are how you actually risk-manage a book.
+
+"How would you make the Monte Carlo more accurate without more simulations?"
+Variance reduction. Antithetic variates: for each Z, also use −Z; the negative correlation cuts variance. Control variates: use a related quantity with known expectation to correct the estimate. Good answer because it shows you understand the 1/√N wall.
+
+"How would you verify correctness?"
+MC converges to BS within Monte Carlo standard error (and I checked the error decays as 1/√N on a log-log plot). Could also check put-call parity, or known boundary cases (deep in/out of the money).
+
+"Put-call parity?"
+C − P = S − K·e^(−rT). A model-free no-arbitrage relationship — lets you price a put from a call instantly, and is a sanity check on any pricer.
+
+"What's the time complexity?" MC is O(N) — linear in simulations, which your timing plot confirms. BS is O(1).
+
+"Why C++ and not Python for the pricing?" Speed. MC is millions of independent iterations — a tight compiled loop is orders of magnitude faster than interpreted Python. Industry quant libraries are C++ for exactly this. Python's role here is analysis/visualisation, where speed doesn't matter and the ecosystem is richer.
+
+9. The honest weaknesses (say these before they find them)
+Showing you know the limitations is more impressive than pretending there are none:
+
+European calls only — no puts, no American, no exotics yet.
+No input validation (negative σ, T = 0 would misbehave).
+Single-threaded — MC is embarrassingly parallel and could be threaded.
+Hardcoded parameters rather than command-line/file input.
+Fixed seed — fine for a demo, not for production estimates.
+Then pivot to roadmap: puts via put-call parity, the Greeks, antithetic variates, multithreading. That turns a weakness question into a "here's how I think about extending it" answer.
+
+Want me to drill you on any of these — I can fire interview-style questions at you and check your answers, which is the fastest way to find the gaps before a real interviewer does.
