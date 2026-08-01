@@ -1,6 +1,6 @@
 # Option Pricer
 
-A C++ pricer for European options that values a call and a put two independent ways — the **Black-Scholes** closed-form formula and **Monte Carlo** simulation — and verifies them against each other. Results are exported to CSV and visualised in a Python notebook.
+A C++ pricer for European options that values a call and a put two independent ways: the **Black-Scholes** closed-form formula and **Monte Carlo** simulation, and verifies them against each other. Results are exported to CSV and visualised in a Python notebook.
 
 The project demonstrates that Monte Carlo converges to the analytical Black-Scholes price at the theoretical rate of `1/√N`, and that **antithetic variates** reduce the Monte Carlo error by roughly an order of magnitude at the same computational cost.
 
@@ -68,9 +68,9 @@ Results are written to `output/results.csv`.
 
 Open `python/analysis.ipynb` (requires `pandas`, `matplotlib`, `numpy`) and run all cells. It produces three plots:
 
-1. **Convergence** — standard and antithetic Monte Carlo prices approaching the Black-Scholes price
-2. **Error (log-log)** — both methods against the theoretical `1/√N` reference; antithetic sits below standard, confirming variance reduction
-3. **Timing** — computation time scaling linearly with the number of simulations
+1. **Convergence** - standard and antithetic Monte Carlo prices approaching the Black-Scholes price
+2. **Error (log-log)** - both methods against the theoretical `1/√N` reference; antithetic sits below standard, confirming variance reduction
+3. **Timing** - computation time scaling linearly with the number of simulations
 
 ---
 
