@@ -11,7 +11,7 @@ The project demonstrates that Monte Carlo converges to the analytical Black-Scho
 - **Black-Scholes** closed-form pricing for calls and puts
 - **Monte Carlo** pricing under the risk-neutral measure, for calls and puts
 - **Antithetic variates** variance reduction for Monte Carlo
-- **The Greeks** — delta, gamma, vega, theta, rho (closed-form)
+- **The Greeks** - delta, gamma, vega, theta, rho (closed-form)
 - **Put-call parity** check as a built-in correctness test
 - **Command-line input** with validation
 - **Python notebook** plotting convergence and variance reduction
